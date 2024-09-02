@@ -1,0 +1,65 @@
+// Load Sentinel-2 image collection
+var image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterDate('2023-01-01', '2023-01-15')
+  .filterBounds(table);
+  
+// Print the image collection to the console
+print(image, 'Sentinel-2 Collection');
+
+// Add the Sentinel-2 image layer to the map (optional, for reference)
+var imageVisParam = {
+  bands: ['B4', 'B3', 'B2'],  // RGB composite
+  min: 0,
+  max: 3000,
+  gamma: 1.4
+};
+Map.addLayer(image, imageVisParam, 'AOI Sentinel-2');
+Map.centerObject(Dhal);  // Center the map on the 'Dhal' feature
+
+// Add the AOI and 'Dhal' layers to the map
+Map.addLayer(table, {}, 'Study Boundary');
+Map.addLayer(Dhal);
+
+// NDVI calculation function
+var NDVI = function(image) {
+  return image.expression(
+    '(NIR - RED) / (NIR + RED)',  
+    {
+      'NIR': image.select('B8'),
+      'RED': image.select('B4')
+    }
+  ).rename('NDVI').copyProperties(image, image.propertyNames());
+};
+
+// Calculate NDVI for the image collection
+var NDVI_2023 = image.map(NDVI);
+
+// Clip NDVI to the AOI
+var clippedNDVI_2023 = NDVI_2023.map(function(image) {
+  return image.clip(table);
+});
+
+// Add the clipped NDVI layer to the map with visualization parameters
+var ndviVisParam = {
+  min: -1,
+  max: 1,
+  palette: ['blue', 'white', 'green']  // Color palette for NDVI
+};
+Map.addLayer(clippedNDVI_2023.mean(), ndviVisParam, 'Clipped NDVI January 2023');
+
+// Convert the collection to a multi-band image for zonal statistics
+var bands = clippedNDVI_2023.toBands();
+
+// Calculate zonal statistics
+var zonal = bands.reduceRegions({
+  collection: table,  // Corrected typo from 'collectin'
+  reducer: ee.Reducer.mean(),  // Calculate mean NDVI
+  scale: 10,  // Sentinel-2 resolution
+});
+
+// Export the zonal statistics to Google Drive as a CSV file
+Export.table.toDrive({
+  description: 'ndvi_2023',  // Lowercase 'description'
+  collection: zonal,
+  fileFormat: 'CSV',
+});
