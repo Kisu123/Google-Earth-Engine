@@ -1,0 +1,33 @@
+var imageCollection = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+  .filterDate('2015-06-23', '2020-05-05')
+  .filterBounds(table);
+
+print(imageCollection, {}, 'satimage');  // Check if the collection is not empty
+
+// Define visualization parameters
+var visualization = {
+  min: 0,
+  max: 3000,
+  bands: ['B4', 'B3', 'B2'],
+};
+
+// Function to clip each image in the collection
+var clipToTable = function(image) {
+  return image.clip(table);
+};
+
+// Apply the clip function to each image in the collection
+var clippedCollection = imageCollection.map(clipToTable);
+
+// Add the median of the clipped collection to the map
+Map.addLayer(clippedCollection.median(), visualization, "Clipped Sentinel-2 Image");
+Export.image.toDrive({
+  image: clippedCollection,
+  description: 'Clipped_Sentinel2_Image',
+  folder: 'EarthEngineExports',  // Name of the folder in Google Drive (optional)
+  scale: 10,  // Pixel resolution in meters (10 meters for Sentinel-2)
+  region: table,  // The region to export
+  maxPixels: 1e13,  // Maximum number of pixels allowed in the export
+  crs: 'EPSG:4326'  // Coordinate Reference System (optional)
+});
